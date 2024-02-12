@@ -283,7 +283,7 @@ resource "aws_launch_configuration" "weclouddata" {
                     sudo chown ubuntu:users -R /app
                     cd /app &&  sudo sed -i 's/$FLAG_DB_HOST/- DB_HOST=${aws_db_instance.postgres.address}/g' docker-compose.yml
                     sudo chown ubuntu:users -R /app
-                    cd /app && sudo docker compose up -d -f
+                    cd /app && sudo docker compose up -d
               EOF
   key_name        = aws_key_pair.generated_key.key_name
   security_groups = [aws_security_group.terraform_security_group.id, aws_security_group.terraform_security_ssh_group.id, aws_security_group.terraform_security_icmp_group.id]
@@ -327,21 +327,6 @@ resource "aws_lb_target_group" "weclouddata" {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 resource "aws_lb" "weclouddata" {
   name               = "weclouddata-lb"
   internal           = false
@@ -350,9 +335,19 @@ resource "aws_lb" "weclouddata" {
   subnets            = [aws_subnet.terraform_subnet-1a.id, aws_subnet.terraform_subnet-1b.id]
 }
 
-resource "aws_lb_listener" "weclouddata" {
+resource "aws_lb_listener" "weclouddata_frontend" {
   load_balancer_arn = aws_lb.weclouddata.arn
   port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.weclouddata.arn
+  }
+}
+resource "aws_lb_listener" "weclouddata_backend" {
+  load_balancer_arn = aws_lb.weclouddata.arn
+  port              = "8080"
   protocol          = "HTTP"
 
   default_action {
