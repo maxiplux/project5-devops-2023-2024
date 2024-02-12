@@ -299,6 +299,8 @@ resource "aws_autoscaling_group" "weclouddata" {
   min_size             = 2
   max_size             = 6
   desired_capacity     = 2
+  health_check_type         = "EC2"
+  health_check_grace_period = 300
   launch_configuration = aws_launch_configuration.weclouddata.name
   vpc_zone_identifier  = [aws_subnet.terraform_subnet-1a.id, aws_subnet.terraform_subnet-1b.id]
 }
@@ -307,13 +309,36 @@ resource "aws_autoscaling_group" "weclouddata" {
 
 
 
-resource "aws_lb_target_group" "weclouddata" {
-  name     = "weclouddata"
+resource "aws_lb_target_group" "weclouddata_frontend" {
+  depends_on = [ aws_lb.weclouddata ]
+  name     = "weclouddatafrontend"
   port     = 80
   protocol = "HTTP"
   vpc_id   = aws_vpc.terraform_vpc.id
+  health_check {
+    path                = "/"
+    port                = 80
+    protocol            = "HTTP"
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    matcher             = "200-499"
+  }
 }
-
+resource "aws_lb_target_group" "weclouddata_backend" {
+  depends_on = [ aws_lb.weclouddata ]
+  name     = "weclouddatabackend"
+  port     = 8080
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.terraform_vpc.id
+  health_check {
+    path                = "/"
+    port                = 8080
+    protocol            = "HTTP"
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    matcher             = "200-499"
+  }
+}
 
 
 
@@ -342,8 +367,9 @@ resource "aws_lb_listener" "weclouddata_frontend" {
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.weclouddata.arn
+    target_group_arn = aws_lb_target_group.weclouddata_frontend.arn
   }
+
 }
 resource "aws_lb_listener" "weclouddata_backend" {
   load_balancer_arn = aws_lb.weclouddata.arn
@@ -352,10 +378,20 @@ resource "aws_lb_listener" "weclouddata_backend" {
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.weclouddata.arn
+    target_group_arn = aws_lb_target_group.weclouddata_backend.arn
   }
 }
 
+
+resource "aws_autoscaling_attachment" "weclouddata_frontend" {
+  autoscaling_group_name = aws_autoscaling_group.weclouddata.id
+  alb_target_group_arn   = aws_lb_target_group.weclouddata_frontend.arn
+}
+
+resource "aws_autoscaling_attachment" "weclouddata_backend" {
+  autoscaling_group_name = aws_autoscaling_group.weclouddata.id
+  alb_target_group_arn   = aws_lb_target_group.weclouddata_backend.arn
+}
 
 resource "null_resource" "user_data_status_check" {
 
@@ -370,6 +406,7 @@ resource "null_resource" "user_data_status_check" {
   depends_on = [aws_lb.weclouddata]
 
 }
+
 
 
 output "dns_load_balancer" {
@@ -390,6 +427,8 @@ output "private_key" {
   value     = tls_private_key.ssh.private_key_pem
   sensitive = true
 }
+
+
 
 ################################################################################################################################################
 
