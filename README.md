@@ -60,7 +60,7 @@ After you have submitted your assignment, make your API service available on the
 
 
 ## Architecture answer to this challengue.
-![Architecture](project-diagram.png)
+![Architecture](project-diagram-final.png)
 
 Prerequisites
 -------------
