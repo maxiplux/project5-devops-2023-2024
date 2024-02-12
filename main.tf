@@ -276,10 +276,14 @@ resource "aws_launch_configuration" "weclouddata" {
                     sudo service docker start
 
                     sudo mkdir /app
-                    sudo chown ubuntu:users /app
-                    cd /app && echo "export DB_HOST=${aws_db_instance.postgres.address}" >> /app/.env
-                    cd /app && wget https://raw.githubusercontent.com/maxiplux/api-python-project-devops-fast-api/dev-auth/docker-compose.yml
-                    cd /tmp && sudo docker compose up -d -f
+                    sudo chown ubuntu:users -R /app
+                    cd /app && sudo echo "export DB_HOST=${aws_db_instance.postgres.address}" >> /app/.env
+                    cd /app && sudo chown ubuntu:users .env
+                    cd /app && wget https://raw.githubusercontent.com/maxiplux/project5-devops-2023-2024/master/docker-compose.yml
+                    sudo chown ubuntu:users -R /app
+                    cd /app &&  sudo sed -i 's/$FLAG_DB_HOST/- DB_HOST=${aws_db_instance.postgres.address}/g' docker-compose.yml
+                    sudo chown ubuntu:users -R /app
+                    cd /app && sudo docker compose up -d -f
               EOF
   key_name        = aws_key_pair.generated_key.key_name
   security_groups = [aws_security_group.terraform_security_group.id, aws_security_group.terraform_security_ssh_group.id, aws_security_group.terraform_security_icmp_group.id]
@@ -314,24 +318,6 @@ resource "aws_lb_target_group" "weclouddata" {
 
 
 
-output "dns_load_balancer" {
-  description = "DNS ALB"
-  value       = "http://${aws_lb.weclouddata.dns_name}"
-}
-
-
-
-
-output "db_address" {
-  value = aws_db_instance.postgres.address
-}
-
-
-//terraform output -raw private_key > terraform.pem
-output "private_key" {
-  value     = tls_private_key.ssh.private_key_pem
-  sensitive = true
-}
 
 
 
@@ -376,7 +362,39 @@ resource "aws_lb_listener" "weclouddata" {
 }
 
 
+resource "null_resource" "user_data_status_check" {
 
+  provisioner "local-exec" {
+    command = "bash check_status.sh http://${aws_lb.weclouddata.dns_name}:8080/docs"
+  }
+  triggers = {
+    #remove this once you test it out as it should run only once
+    always_run ="${timestamp()}"
+
+  }
+  depends_on = [aws_lb.weclouddata]
+
+}
+
+
+output "dns_load_balancer" {
+  description = "DNS ALB"
+  value       = "http://${aws_lb.weclouddata.dns_name}"
+}
+
+
+
+
+output "db_address" {
+  value = aws_db_instance.postgres.address
+}
+
+
+//terraform output -raw private_key > terraform.pem
+output "private_key" {
+  value     = tls_private_key.ssh.private_key_pem
+  sensitive = true
+}
 
 ################################################################################################################################################
 
