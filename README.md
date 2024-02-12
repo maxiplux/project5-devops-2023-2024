@@ -110,8 +110,12 @@ Note
 
 This configuration is intended for development purposes. It's your responsibility to harden it for production use.
 
-#Video with the answer to project 4:
-## https://www.youtube.com/watch?v=03fnj4TSAwI
+#Video with the answer to project 5:
+## Video answer part 1
+    https://www.youtube.com/watch?v=8iO5Td11LSU
+## Video answer part 2
+    https://www.youtube.com/watch?v=hACXaeXimWc
+
 
 Health Check Script
 -------------------
