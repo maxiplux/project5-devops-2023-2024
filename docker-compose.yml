@@ -13,7 +13,7 @@ services:
     ports:
       - 0.0.0.0:8080:80
   front-end:
-    image: maxiplux/front-end:27cc05c45be0c7c12b593f599ef922aca735085b
+    image: maxiplux/front-end:3cb7fd5698a261a8bdb038f012dc7fd5e0918463
     container_name: front-end
     restart: on-failure
     depends_on:
