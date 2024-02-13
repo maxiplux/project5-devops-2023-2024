@@ -1,9 +1,12 @@
-############################################################################################terraform {
+############################################################################################
+# Terraform Configuration Block
+# Specifies the required Terraform version and the required providers with their versions.
+# This project uses AWS and Null providers.
 terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 4.0"
+      version = "5.36.0"
     }
 
     null = {
@@ -14,22 +17,22 @@ terraform {
   }
 }
 
-
-resource "random_uuid" "unique_service_name" {
-
-}
+# Resource: TLS Private Key
+# Generates an RSA private key for SSH access.
 resource "tls_private_key" "ssh" {
   algorithm = "RSA"
   rsa_bits  = "4096"
 }
-
+# Resource: AWS Key Pair
+# Creates an AWS key pair using the generated RSA public key for SSH access.
 resource "aws_key_pair" "generated_key" {
   key_name   = "terraform-pem-ha"
   public_key = tls_private_key.ssh.public_key_openssh
 
 
 }
-
+# Resource: Local File
+# Saves the generated RSA private key locally with restricted file permissions.
 resource "local_file" "private_key" {
   content         = tls_private_key.ssh.private_key_pem
   filename        = "terraform-ha.pem"
@@ -39,6 +42,8 @@ resource "local_file" "private_key" {
 
 
 # Configure the AWS Provider
+# Configures the AWS provider with the specified region and default tags for all resources.
+
 provider "aws" {
   region = "us-east-1"
   default_tags {
@@ -48,6 +53,7 @@ provider "aws" {
     }
   }
 }
+# This resource creates a VPC with the specified CIDR block and enables DNS hostnames.
 
 resource "aws_vpc" "terraform_vpc" {
   cidr_block           = "172.16.0.0/16"
@@ -57,12 +63,16 @@ resource "aws_vpc" "terraform_vpc" {
     Name = "Terraform-ha"
   }
 }
+# This resource creates an internet gateway and attaches it to the VPC.
+
 resource "aws_internet_gateway" "terraform_vpc_internet_gateway" {
   vpc_id = aws_vpc.terraform_vpc.id
   tags = {
     Name = "Terraform-ha"
   }
 }
+# This resource creates a route table for the VPC and defines a route that points all traffic (0.0.0.0/0) to the internet gateway.
+
 resource "aws_route_table" "terraform_aws_route_table" {
   vpc_id = aws_vpc.terraform_vpc.id
   route {
@@ -72,6 +82,7 @@ resource "aws_route_table" "terraform_aws_route_table" {
 }
 
 
+# These resources create two subnets in different availability zones within the VPC.
 
 resource "aws_subnet" "terraform_subnet-1a" {
   vpc_id                  = aws_vpc.terraform_vpc.id
@@ -83,6 +94,7 @@ resource "aws_subnet" "terraform_subnet-1a" {
     Name = "Terraform-ha"
   }
 }
+# These resources create two subnets in different availability zones within the VPC.
 
 resource "aws_subnet" "terraform_subnet-1b" {
   vpc_id                  = aws_vpc.terraform_vpc.id
@@ -94,6 +106,7 @@ resource "aws_subnet" "terraform_subnet-1b" {
     Name = "Terraform-ha"
   }
 }
+# This resource creates an Elastic IP address for the VPC.
 
 resource "aws_eip" "terraform_eip" {
   vpc = true
@@ -101,6 +114,8 @@ resource "aws_eip" "terraform_eip" {
     Name = "Terraform-ha"
   }
 }
+# This resource creates a NAT gateway in the specified subnet and associates the Elastic IP address with it.
+
 resource "aws_nat_gateway" "terraform_aws_nat_gateway" {
   allocation_id = aws_eip.terraform_eip.id
   subnet_id     = aws_subnet.terraform_subnet-1a.id
@@ -112,11 +127,13 @@ resource "aws_nat_gateway" "terraform_aws_nat_gateway" {
 }
 
 
+# This resource associates the subnet with the route table.
 
 resource "aws_route_table_association" "terraform_aws_route_table_association" {
   subnet_id      = aws_subnet.terraform_subnet-1a.id
   route_table_id = aws_route_table.terraform_aws_route_table.id
 }
+# This resource creates a network interface in the specified subnet and assigns it a private IP address.
 
 resource "aws_network_interface" "terraform_network_interface" {
   subnet_id   = aws_subnet.terraform_subnet-1a.id
@@ -128,6 +145,7 @@ resource "aws_network_interface" "terraform_network_interface" {
 }
 
 
+# This resource creates a security group in the VPC and defines inbound and outbound access rules.
 
 resource "aws_security_group" "terraform_security_group" {
   name   = "terraform_security_group-sg"
@@ -156,7 +174,7 @@ resource "aws_security_group" "terraform_security_group" {
 }
 
 
-
+# This resource creates a security group in the VPC and defines inbound access rules for ICMP traffic.
 resource "aws_security_group" "terraform_security_icmp_group" {
   name   = "terraform_security_group-icmp-sg"
   vpc_id = aws_vpc.terraform_vpc.id
@@ -174,6 +192,8 @@ resource "aws_security_group" "terraform_security_icmp_group" {
     Name = "Terraform-ha",
   }
 }
+
+# This resource creates a security group in the VPC and defines inbound access rules for SSH traffic.
 
 resource "aws_security_group" "terraform_security_ssh_group" {
   name   = "terraform_security_ssh_group-sg"
@@ -193,6 +213,7 @@ resource "aws_security_group" "terraform_security_ssh_group" {
 provider "tls" {}
 
 ########################################################################################
+# This resource creates a security group in the VPC and defines inbound access rules for PostgreSQL traffic.
 
 resource "aws_security_group" "postgres" {
   vpc_id      = aws_vpc.terraform_vpc.id
@@ -206,6 +227,7 @@ resource "aws_security_group" "postgres" {
   }
 }
 
+# This resource creates a PostgreSQL database instance in AWS RDS.
 
 resource "aws_db_instance" "postgres" {
   allocated_storage    = 20
@@ -227,6 +249,7 @@ resource "aws_db_instance" "postgres" {
     Name = "MyDBInstance"
   }
 }
+# This resource creates a subnet group for the PostgreSQL database instance.
 
 resource "aws_db_subnet_group" "postgres" {
   name       = "main"
@@ -246,11 +269,12 @@ resource "aws_db_subnet_group" "postgres" {
 ########################################################################################################################
 
 
+# This resource creates a launch configuration for the EC2 instances.
 
 resource "aws_launch_configuration" "weclouddata" {
   name_prefix   = "base_aws_launch_configuration-config"
   image_id      = "ami-0c7217cdde317cfec"
-  instance_type = "t2.micro"
+  instance_type = "t3a.large"
 
 
   user_data       = <<-EOF
@@ -294,11 +318,12 @@ resource "aws_launch_configuration" "weclouddata" {
   }
 }
 
+# This resource creates an Auto Scaling group and associates it with the launch configuration.
 
 resource "aws_autoscaling_group" "weclouddata" {
-  min_size             = 2
+  min_size             = 4
   max_size             = 6
-  desired_capacity     = 2
+  desired_capacity     = 4
   health_check_type         = "EC2"
   health_check_grace_period = 300
   launch_configuration = aws_launch_configuration.weclouddata.name
@@ -308,6 +333,7 @@ resource "aws_autoscaling_group" "weclouddata" {
 
 
 
+# These resources create target groups for the load balancer.
 
 resource "aws_lb_target_group" "weclouddata_frontend" {
   depends_on = [ aws_lb.weclouddata ]
@@ -319,6 +345,7 @@ resource "aws_lb_target_group" "weclouddata_frontend" {
     path                = "/"
     port                = 80
     protocol            = "HTTP"
+    interval            = 10
     healthy_threshold   = 3
     unhealthy_threshold = 3
     matcher             = "200-499"
@@ -331,9 +358,10 @@ resource "aws_lb_target_group" "weclouddata_backend" {
   protocol = "HTTP"
   vpc_id   = aws_vpc.terraform_vpc.id
   health_check {
-    path                = "/"
+    path                = "/docs"
     port                = 8080
     protocol            = "HTTP"
+    interval            = 10
     healthy_threshold   = 3
     unhealthy_threshold = 3
     matcher             = "200-499"
@@ -351,6 +379,7 @@ resource "aws_lb_target_group" "weclouddata_backend" {
 
 
 
+# This resource creates an application load balancer.
 
 resource "aws_lb" "weclouddata" {
   name               = "weclouddata-lb"
@@ -359,6 +388,7 @@ resource "aws_lb" "weclouddata" {
   security_groups    = [aws_security_group.terraform_security_group.id]
   subnets            = [aws_subnet.terraform_subnet-1a.id, aws_subnet.terraform_subnet-1b.id]
 }
+# These resources create listeners for the load balancer.
 
 resource "aws_lb_listener" "weclouddata_frontend" {
   load_balancer_arn = aws_lb.weclouddata.arn
@@ -371,6 +401,8 @@ resource "aws_lb_listener" "weclouddata_frontend" {
   }
 
 }
+# These resources create listeners for the load balancer.
+
 resource "aws_lb_listener" "weclouddata_backend" {
   load_balancer_arn = aws_lb.weclouddata.arn
   port              = "8080"
@@ -382,16 +414,20 @@ resource "aws_lb_listener" "weclouddata_backend" {
   }
 }
 
+# These resources attach the Auto Scaling group to the target groups.
 
 resource "aws_autoscaling_attachment" "weclouddata_frontend" {
   autoscaling_group_name = aws_autoscaling_group.weclouddata.id
-  alb_target_group_arn   = aws_lb_target_group.weclouddata_frontend.arn
+  lb_target_group_arn       = aws_lb_target_group.weclouddata_frontend.arn
+
 }
+# These resources attach the Auto Scaling group to the target groups.
 
 resource "aws_autoscaling_attachment" "weclouddata_backend" {
   autoscaling_group_name = aws_autoscaling_group.weclouddata.id
-  alb_target_group_arn   = aws_lb_target_group.weclouddata_backend.arn
+  lb_target_group_arn   = aws_lb_target_group.weclouddata_backend.arn
 }
+# This resource checks the status of the user data script.
 
 resource "null_resource" "user_data_status_check" {
 
@@ -408,6 +444,7 @@ resource "null_resource" "user_data_status_check" {
 }
 
 
+# These outputs display the DNS name of the load balancer and the address of the PostgreSQL database instance.
 
 output "dns_load_balancer" {
   description = "DNS ALB"
